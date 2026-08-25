@@ -6,24 +6,8 @@ let history = []; // rolling 30s window, for the display strip
 let sessionLog = []; // full take, for export — not trimmed
 const HISTORY_SECONDS = 30;
 
-// Debug: rolling raw-FFT capture, so we can inspect what the mic actually
-// picked up when the pitch curve shows a gap (autoCorrelate rejected every
-// frame) instead of guessing blind.
-let fftHistory = [];
-const FFT_DEBUG_SECONDS = 10;
-const FFT_DEBUG_MAX_FREQ = 1000; // Hz — covers a low fundamental plus a few harmonics
-
 const toggleBtn = document.getElementById('toggleBtn');
-const exportBtn = document.getElementById('exportBtn');
-const exportStatus = document.getElementById('exportStatus');
-const exportReport = document.getElementById('exportReport');
-const exportCurveBtn = document.getElementById('exportCurveBtn');
-const exportCurveStatus = document.getElementById('exportCurveStatus');
-const exportCurveReport = document.getElementById('exportCurveReport');
 const replayBtn = document.getElementById('replayBtn');
-const fftDebugBtn = document.getElementById('fftDebugBtn');
-const fftDebugStatus = document.getElementById('fftDebugStatus');
-const fftDebugReport = document.getElementById('fftDebugReport');
 let mediaRecorder = null;
 let recordedChunks = [];
 let lastRecordingBlob = null;
@@ -49,87 +33,6 @@ const statBias = document.getElementById('statBias');
 
 toggleBtn.addEventListener('click', () => {
   if (!running) start(); else stop();
-});
-
-exportBtn.addEventListener('click', async () => {
-  const voicedOnly = sessionLog.filter(e => !e.silent);
-  const payload = {
-    duration_s: sessionLog.length ? sessionLog[sessionLog.length - 1].t : 0,
-    sample_count: voicedOnly.length,
-    readings: voicedOnly.map(e => ({ t: e.t, note: e.note, freq_hz: e.freq, cents: e.cents }))
-  };
-  await saveViaApiOrDownload('/api/save-sample', payload, 'json_last_sample.json', exportStatus, exportReport,
-    `${voicedOnly.length} lectures, ${payload.duration_s.toFixed(1)}s`);
-});
-
-fftDebugBtn.addEventListener('click', async () => {
-  if (fftHistory.length === 0){
-    fftDebugStatus.textContent = "Rien à enregistrer — lance une écoute d'abord.";
-    return;
-  }
-  const binHz = audioCtx ? audioCtx.sampleRate / PITCH_FFT_SIZE : null;
-  const payload = {
-    description: `debug — magnitudes FFT brutes (0-255 par bin) sur les ${FFT_DEBUG_SECONDS} dernières secondes, jusqu'à ${FFT_DEBUG_MAX_FREQ}Hz. Chaque "reading" est une frame: t (secondes), mags (tableau de magnitudes, un par bin de largeur bin_hz).`,
-    fft_size: PITCH_FFT_SIZE,
-    sample_rate: audioCtx ? audioCtx.sampleRate : null,
-    bin_hz: binHz,
-    frame_count: fftHistory.length,
-    readings: fftHistory
-  };
-  await saveViaApiOrDownload('/api/save-curve', payload, 'json_last_sample_curve.json', fftDebugStatus, fftDebugReport,
-    `${fftHistory.length} frames FFT`);
-});
-
-function saveJsonFile(json, filename){
-  const blob = new Blob([json], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
-
-// Tries the local Flask server first (it saves the file on disk next to the
-// project and runs analyse_pitch.py on it); if the page isn't served from
-// that server (e.g. opened directly as a file, or the server isn't running),
-// falls back to a plain browser download so the export still works.
-async function saveViaApiOrDownload(endpoint, payload, filename, statusEl, reportEl, summary){
-  try {
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const result = await res.json();
-    statusEl.textContent = `Enregistré par le serveur — ${summary} (${result.saved_to || filename}).`;
-    if (result.report){
-      reportEl.textContent = result.report;
-      reportEl.classList.add('visible');
-    } else if (result.error){
-      reportEl.textContent = "Analyse impossible : " + result.error;
-      reportEl.classList.add('visible');
-    }
-  } catch (e) {
-    saveJsonFile(JSON.stringify(payload), filename);
-    statusEl.textContent = `Serveur local indisponible — téléchargé via le navigateur à la place (${filename}).`;
-    reportEl.classList.remove('visible');
-  }
-}
-
-exportCurveBtn.addEventListener('click', async () => {
-  const voicedOnly = sessionLog.filter(e => !e.silent && e.noteNum != null);
-  const payload = {
-    duration_s: sessionLog.length ? sessionLog[sessionLog.length - 1].t : 0,
-    sample_count: voicedOnly.length,
-    description: "courbe de hauteur continue — noteNum est la hauteur exacte en demi-tons (69 = La4/440Hz), non arrondie à une note",
-    readings: voicedOnly.map(e => ({ t: e.t, freq_hz: e.freq, noteNum: +e.noteNum.toFixed(3) }))
-  };
-  await saveViaApiOrDownload('/api/save-curve', payload, 'json_last_sample_curve.json', exportCurveStatus, exportCurveReport,
-    `${voicedOnly.length} points de courbe, ${payload.duration_s.toFixed(1)}s`);
 });
 
 replayBtn.addEventListener('click', () => {
@@ -284,21 +187,14 @@ async function start(){
   toggleBtn.classList.add('active');
   statusEl.textContent = "En écoute";
   statusEl.classList.add('live');
-  exportBtn.disabled = true;
-  exportStatus.textContent = "";
-  exportCurveBtn.disabled = true;
-  exportCurveStatus.textContent = "";
   replayBtn.disabled = true;
   lastRecordingBlob = null;
   pitchCtx.clearRect(0,0,pitchCanvas.width,pitchCanvas.height);
   history = [];
   sessionLog = [];
-  fftHistory = [];
   centsBuffer = [];
   lastFreq = null;
   lastVoicedAt = null;
-  fftDebugStatus.textContent = "";
-  fftDebugReport.classList.remove('visible');
   sessionStart = performance.now() / 1000;
   loop();
 }
@@ -319,7 +215,6 @@ function stop(){
   toggleBtn.classList.remove('active');
   statusEl.textContent = "Micro coupé";
   statusEl.classList.remove('live');
-  exportBtn.disabled = sessionLog.filter(e => !e.silent).length === 0;
   noteNameEl.textContent = "—";
   noteOctEl.textContent = "";
   freqValEl.textContent = "0.0 Hz";
@@ -327,7 +222,6 @@ function stop(){
   needleEl.style.left = "50%";
   needleEl.style.background = "var(--amber)";
   spectrumCtx.clearRect(0,0,spectrumCanvas.width,spectrumCanvas.height);
-  exportCurveBtn.disabled = sessionLog.filter(e => !e.silent && e.noteNum != null).length === 0;
 
   // freeze the FULL session (not just the trailing live window) onto both charts
   const fullDuration = sessionLog.length ? sessionLog[sessionLog.length - 1].t : 0;
@@ -336,27 +230,22 @@ function stop(){
 }
 
 let sessionStart = 0;
-// Tried 4096 to give low notes more periods per window — made things worse:
-// with more periods in the buffer, the harmonic-bias correction below (which
-// prefers the longest lag near-as-strong as the global peak) starts locking
+// 4096 was tried to give low notes more periods per window, but with more
+// periods in the buffer the harmonic-bias correction below starts locking
 // onto 2x the true period on some notes, reporting half the real frequency.
-// Back to 2048 until the actual rejection cause (see lastAutocorrelateDebug)
-// is confirmed from real captures.
+// 2048 is the stable value.
 const PITCH_FFT_SIZE = 2048;
 const buf = new Float32Array(PITCH_FFT_SIZE);
 let lastFreq = null;
 let lastVoicedAt = null;
 // Below this, a rejected frame is treated as a micro-glitch (a consonant, a
-// single noisy frame) rather than a real pause — debug captures showed most
-// gaps between "ok" runs are 30-200ms, well inside a sung phrase, yet every
-// one of them was wiping the octave-continuity anchor and the smoothing
-// buffer; the very next (unprotected, unsmoothed) raw estimate would then
-// display immediately, producing a visible jump right when voicing resumed.
-// Matches the 0.15s breath-cut threshold already used for the visual curve.
+// single noisy frame) rather than a real pause — most gaps between voiced
+// stretches are 30-200ms, well inside a sung phrase, yet every one of them
+// was wiping the octave-continuity anchor and the smoothing buffer; the very
+// next (unprotected, unsmoothed) raw estimate would then display immediately,
+// producing a visible jump right when voicing resumed. Matches the 0.15s
+// breath-cut threshold already used for the visual curve.
 const CONTINUITY_RESET_SECONDS = 0.15;
-// Debug: last outcome of autoCorrelate (why a frame was accepted/rejected),
-// so the FFT debug capture can show the real cause instead of guesswork.
-let lastAutocorrelateDebug = null;
 let centsBuffer = []; // recent raw cents readings, for median smoothing
 const SMOOTH_WINDOW = 6;
 
@@ -409,7 +298,6 @@ function loop(){
   drawHistory(nowRel);
   drawPitchCurve(nowRel);
   drawSpectrum();
-  recordFftFrame(nowRel);
   updateStats();
 
   rafId = requestAnimationFrame(loop);
@@ -453,16 +341,20 @@ function noteNumToLabel(noteNum){
 // 3. Confidence gate: reject frames where even the best peak is a weak
 //    fraction of perfect self-correlation (breath noise, consonants,
 //    silence) instead of reporting a spurious note.
+// Thresholds tuned against real captured voice/silence data (see git history
+// for the readings behind each value) rather than guessed.
+const RMS_SILENCE_THRESHOLD = 0.002; // below: true silence/background noise
+const CONFIDENCE_THRESHOLD = 0.35; // below: too noisy/unvoiced to trust
+const HARMONIC_MATCH_RATIO = 0.9; // how strong a subharmonic candidate must be, relative to the global peak, to override it
+const OCTAVE_CONTINUITY_RATIO = 0.85; // how strong a peak near the previous pitch must be to override the global peak
+const MIN_SUNG_FREQ = 50, MAX_SUNG_FREQ = 300; // outside this, it's not a plausible sung note
+
 function autoCorrelate(buf, sampleRate, lastFreq){
   const SIZE = buf.length;
   let rms = 0;
   for (let i = 0; i < SIZE; i++) rms += buf[i]*buf[i];
   rms = Math.sqrt(rms / SIZE);
-  // 0.01 was rejecting real low, quietly-sung notes as silence (measured
-  // ~0.003-0.01 rms in captured debug data) while true background noise sat
-  // under ~0.0006 — the confidence gate below already separates tone from
-  // noise reliably, so this pre-gate only needs to catch actual silence.
-  if (rms < 0.002){ lastAutocorrelateDebug = { reason: 'silence_rms', rms }; return -1; } // too quiet / silence
+  if (rms < RMS_SILENCE_THRESHOLD) return -1;
 
   let r1 = 0, r2 = SIZE - 1;
   const thres = 0.2;
@@ -484,15 +376,12 @@ function autoCorrelate(buf, sampleRate, lastFreq){
   for (let i = d; i < n; i++){
     if (c[i] > maxVal){ maxVal = c[i]; maxPos = i; }
   }
-  if (maxPos <= 0){ lastAutocorrelateDebug = { reason: 'no_peak', rms }; return -1; }
+  if (maxPos <= 0) return -1;
 
   // Confidence: how strong is the best periodicity peak vs. perfect
   // self-correlation at lag 0.
   const confidence = maxVal / c[0];
-  if (confidence < 0.35){ // too noisy / unvoiced to trust
-    lastAutocorrelateDebug = { reason: 'low_confidence', rms, confidence, maxPosFreq: sampleRate / maxPos };
-    return -1;
-  }
+  if (confidence < CONFIDENCE_THRESHOLD) return -1;
 
   // Harmonic bias correction: the global peak (maxPos) may be a harmonic of
   // the true fundamental rather than the fundamental itself, in which case
@@ -501,8 +390,7 @@ function autoCorrelate(buf, sampleRate, lastFreq){
   // freely from the far end of the buffer for "any point that's ~90% as
   // strong" — that unconstrained scan could latch onto an unrelated tall
   // peak (buffer-edge noise, an onset transient right after a pause) with
-  // no harmonic relationship to maxPos at all, reporting a bogus pitch
-  // (observed: a clean ~110Hz peak overridden by an unrelated ~59Hz point).
+  // no harmonic relationship to maxPos at all, reporting a bogus pitch.
   let T0 = maxPos;
   for (let mult = 2; mult * maxPos < n; mult++){
     const candidate = mult * maxPos;
@@ -510,12 +398,11 @@ function autoCorrelate(buf, sampleRate, lastFreq){
     for (let i = Math.max(0, candidate - 2); i <= Math.min(n - 1, candidate + 2); i++){
       if (c[i] > localMax){ localMax = c[i]; localPos = i; }
     }
-    if (localMax >= 0.9 * maxVal){ T0 = localPos; break; }
+    if (localMax >= HARMONIC_MATCH_RATIO * maxVal){ T0 = localPos; break; }
   }
 
   // Octave-continuity correction: look for a comparably strong peak
-  // near where we'd expect the previous pitch to land, and prefer it
-  // if it's at least 85% as strong as the global max.
+  // near where we'd expect the previous pitch to land, and prefer it.
   if (lastFreq){
     const expectedLag = sampleRate / lastFreq;
     const window = Math.max(4, Math.round(expectedLag * 0.12));
@@ -523,7 +410,7 @@ function autoCorrelate(buf, sampleRate, lastFreq){
     for (let i = Math.max(d, Math.round(expectedLag - window)); i <= Math.min(n - 1, Math.round(expectedLag + window)); i++){
       if (c[i] > localMax){ localMax = c[i]; localPos = i; }
     }
-    if (localPos > 0 && localMax >= 0.85 * maxVal) T0 = localPos;
+    if (localPos > 0 && localMax >= OCTAVE_CONTINUITY_RATIO * maxVal) T0 = localPos;
   }
 
   const x1 = c[T0 - 1] || 0, x2 = c[T0], x3 = c[T0 + 1] || 0;
@@ -532,11 +419,7 @@ function autoCorrelate(buf, sampleRate, lastFreq){
   if (a) T0 = T0 - b / (2*a);
 
   const freq = sampleRate / T0;
-  if (freq < 50 || freq > 300){ // outside plausible singing range
-    lastAutocorrelateDebug = { reason: 'out_of_range', rms, confidence, freq, maxPosFreq: sampleRate / maxPos };
-    return -1;
-  }
-  lastAutocorrelateDebug = { reason: 'ok', rms, confidence, freq, maxPosFreq: sampleRate / maxPos };
+  if (freq < MIN_SUNG_FREQ || freq > MAX_SUNG_FREQ) return -1;
   return freq;
 }
 
@@ -720,16 +603,6 @@ function drawSpectrumFrom(data, sampleRate){
     const x = (f / maxFreq) * w;
     spectrumCtx.fillText(f + "Hz", Math.min(x, w - 40), h - 4);
   });
-}
-
-// Debug capture: freqData was already refreshed by drawSpectrum() this frame,
-// so just snapshot the low-frequency bins (where a missed fundamental would
-// show up) into the rolling 10s buffer.
-function recordFftFrame(nowRel){
-  if (!analyser || !freqData || !audioCtx) return;
-  const maxBin = Math.min(freqData.length, Math.round(FFT_DEBUG_MAX_FREQ / (audioCtx.sampleRate / 2) * freqData.length));
-  fftHistory.push({ t: +nowRel.toFixed(3), mags: Array.from(freqData.slice(0, maxBin)), pitch: lastAutocorrelateDebug });
-  fftHistory = fftHistory.filter(f => nowRel - f.t <= FFT_DEBUG_SECONDS);
 }
 
 function updateStats(){

@@ -16,17 +16,9 @@
   <div class="panel">
     <div class="control-row">
       <button id="toggleBtn">Démarrer</button>
-      <button id="exportBtn" disabled style="display:none;">Enregistrer les données (JSON)</button>
-      <button id="replayBtn" disabled style="display:none;">Replay le dernier sample</button>
+      <button id="replayBtn" disabled>Replay le dernier sample</button>
       <span class="status" id="status">Micro coupé</span>
     </div>
-    <div class="control-row">
-      <button id="fftDebugBtn">Debug : enregistrer les 10 dernières secondes (FFT)</button>
-    </div>
-    <div class="status" id="fftDebugStatus" style="margin-top:6px;"></div>
-    <pre class="report" id="fftDebugReport"></pre>
-    <div class="status" id="exportStatus" style="margin-top:6px; display:none;"></div>
-    <pre class="report" id="exportReport" style="display:none;"></pre>
 
     <div class="readout">
       <span class="note-big" id="noteName">—</span><span class="note-oct" id="noteOct"></span>
@@ -52,9 +44,6 @@
         <div>
           <div class="history-label">Courbe de hauteur continue (comme une partition, 12s)</div>
           <canvas id="pitchCurve" width="1160" height="360"></canvas>
-          <button id="exportCurveBtn" disabled style="margin-top:8px; display:none;">Enregistrer la courbe (JSON)</button>
-          <div class="status" id="exportCurveStatus" style="margin-top:6px; display:none;"></div>
-          <pre class="report" id="exportCurveReport" style="display:none;"></pre>
         </div>
       </div>
       <div>
