@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Analyseur de justesse</title>
+<link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Micro &rarr; oreille</div>
+    <h1>Analyseur de justesse — temps réel</h1>
+    <p class="sub">Détection de fréquence fondamentale par autocorrélation. Aucun enregistrement n'est envoyé nulle part — tout tourne dans le navigateur, en direct sur ton micro.</p>
+  </header>
+
+  <div class="panel">
+    <div class="control-row">
+      <button id="toggleBtn">Démarrer</button>
+      <button id="exportBtn" disabled style="display:none;">Enregistrer les données (JSON)</button>
+      <button id="replayBtn" disabled style="display:none;">Replay le dernier sample</button>
+      <span class="status" id="status">Micro coupé</span>
+    </div>
+    <div class="control-row">
+      <button id="fftDebugBtn">Debug : enregistrer les 10 dernières secondes (FFT)</button>
+    </div>
+    <div class="status" id="fftDebugStatus" style="margin-top:6px;"></div>
+    <pre class="report" id="fftDebugReport"></pre>
+    <div class="status" id="exportStatus" style="margin-top:6px; display:none;"></div>
+    <pre class="report" id="exportReport" style="display:none;"></pre>
+
+    <div class="readout">
+      <span class="note-big" id="noteName">—</span><span class="note-oct" id="noteOct"></span>
+    </div>
+    <div class="freq" id="freqVal">0.0 Hz</div>
+
+    <div class="gauge-wrap">
+      <div class="gauge-ticks"><span>-50¢</span><span>-25¢</span><span>0</span><span>+25¢</span><span>+50¢</span></div>
+      <div class="gauge-track">
+        <div class="gauge-zone-safe"></div>
+        <div class="gauge-center-line"></div>
+        <div class="gauge-needle" id="needle"></div>
+      </div>
+    </div>
+    <div class="cents-label" id="centsLabel">écart : <b>—</b></div>
+
+    <div class="charts-grid">
+      <div class="charts-col-left">
+        <div>
+          <div class="history-label">Historique (30s)</div>
+          <canvas id="history" width="1160" height="220"></canvas>
+        </div>
+        <div>
+          <div class="history-label">Courbe de hauteur continue (comme une partition, 12s)</div>
+          <canvas id="pitchCurve" width="1160" height="360"></canvas>
+          <button id="exportCurveBtn" disabled style="margin-top:8px; display:none;">Enregistrer la courbe (JSON)</button>
+          <div class="status" id="exportCurveStatus" style="margin-top:6px; display:none;"></div>
+          <pre class="report" id="exportCurveReport" style="display:none;"></pre>
+        </div>
+      </div>
+      <div>
+        <div class="history-label">Spectre (Fourier, temps réel)</div>
+        <canvas id="spectrum" width="700" height="700"></canvas>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="val" id="statInTune">—</div><div class="lbl">% dans le ton</div></div>
+      <div class="stat"><div class="val" id="statAvg">—</div><div class="lbl">écart moyen (¢)</div></div>
+      <div class="stat"><div class="val" id="statBias">—</div><div class="lbl">tendance</div></div>
+    </div>
+  </div>
+
+  <footer>
+    <b>Lecture :</b> zone verte = ±15 cents, une tolérance pensée pour la voix (vibrato naturel compris) plutôt que pour un accordage d'instrument. Au-delà, le curseur passe orange puis rouge. La bande d'historique en bas colore chaque instant chanté selon cet écart — utile pour repérer si tu dérives en fin de phrase ou sur certaines notes précises plutôt que globalement.<br><br>
+    <b>Fiabilité :</b> un filtre de continuité évite les sauts d'octave (piège classique de l'autocorrélation sur une voix riche en harmoniques), et les frames trop bruitées/ambiguës sont ignorées plutôt qu'affichées comme fausses notes.<br><br>
+    <b>Courbe de hauteur :</b> trace la fréquence sur une échelle continue (pas arrondie à la note la plus proche), comme un contour mélodique — utile pour voir si une note est vraiment tenue stable ou si elle glisse en continu vers la suivante. La ligne se coupe aux respirations.<br><br>
+    <b>Spectre :</b> transformée de Fourier en direct de ce qui arrive au micro (0-2000 Hz, la zone vocale utile), rafraîchie à chaque frame — montre le fondamental et ses harmoniques, pas seulement la fréquence estimée.
+  </footer>
+</div>
+
+<script src="static/app.js"></script>
+</body>
+</html>

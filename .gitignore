@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+json_last_sample.json
+json_last_sample_curve.json
