@@ -17,8 +17,11 @@
     <div class="control-row">
       <button id="toggleBtn">Démarrer</button>
       <button id="replayBtn" disabled>Replay le dernier sample</button>
+      <button id="analyseBtn" disabled>Analyser la session</button>
       <span class="status" id="status">Micro coupé</span>
     </div>
+    <div class="status" id="analyseStatus" style="margin-top:6px;"></div>
+    <pre class="report" id="analyseReport"></pre>
 
     <div class="readout">
       <span class="note-big" id="noteName">—</span><span class="note-oct" id="noteOct"></span>
@@ -38,7 +41,7 @@
     <div class="charts-grid">
       <div class="charts-col-left">
         <div>
-          <div class="history-label">Historique (30s)</div>
+          <div class="history-label">Historique (12s)</div>
           <canvas id="history" width="1160" height="220"></canvas>
         </div>
         <div>
@@ -67,6 +70,10 @@
   </footer>
 </div>
 
-<script src="static/app.js"></script>
+<script src="static/js/pitch-detection.js"></script>
+<script src="static/js/visualization.js"></script>
+<script src="static/js/replay.js"></script>
+<script src="static/js/analyse.js"></script>
+<script src="static/js/main.js"></script>
 </body>
 </html>

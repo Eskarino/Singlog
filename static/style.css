@@ -151,4 +151,11 @@ footer{
   width:100%; margin-top: 18px;
   font-family: var(--mono); font-size: 11.5px; color: var(--text-dim); line-height:1.6;
 }
+
+.report{
+  display:none; white-space: pre-wrap; font-family: var(--mono); font-size: 11px;
+  color: var(--text-dim); background: #0a0b0a; border: 1px solid var(--line);
+  border-radius: 4px; padding: 10px; margin-top: 8px; max-height: 260px; overflow-y:auto;
+}
+.report.visible{ display:block; }
 footer b{ color: var(--text); }
