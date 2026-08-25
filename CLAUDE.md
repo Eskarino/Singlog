@@ -13,9 +13,6 @@ autocorrélation dans le navigateur, plus une étape d'analyse post-session
 - `static/app.js` — toute la logique front-end en JS vanilla : capture micro,
   détection de pitch par autocorrélation, dessin jauge/historique/spectre/
   courbe de hauteur, export JSON, replay. Servi tel quel, aucun bundler.
-- `analyseur_justesse(8).html` — ancienne version monolithique (HTML/CSS/JS
-  dans un seul fichier), conservée en référence mais plus servie par
-  `server.py`. À supprimer une fois la version découpée validée.
 - `server.py` — petit serveur Flask. Sert `index.html` (et `static/` via le
   serveur de fichiers statiques par défaut de Flask) et expose l'API que la page
   appelle pour sauvegarder un export sur disque et lancer l'analyse dessus.
