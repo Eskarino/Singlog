@@ -39,7 +39,7 @@ async function start(){
   startRecording(mediaStream);
 
   running = true;
-  toggleBtn.textContent = "Arrêter";
+  toggleBtn.textContent = "Stop";
   toggleBtn.classList.add('active');
   statusEl.textContent = "En écoute";
   statusEl.classList.add('live');
@@ -60,9 +60,9 @@ function stop(){
   stopRecording();
   if (mediaStream) mediaStream.getTracks().forEach(t => t.stop());
   if (audioCtx) audioCtx.close();
-  toggleBtn.textContent = "Démarrer";
+  toggleBtn.textContent = "Start";
   toggleBtn.classList.remove('active');
-  statusEl.textContent = "Micro coupé";
+  statusEl.textContent = "";
   statusEl.classList.remove('live');
   noteNameEl.textContent = "—";
   noteOctEl.textContent = "";
@@ -75,8 +75,8 @@ function stop(){
 
   // freeze the FULL session (not just the trailing live window) onto both charts
   const fullDuration = sessionLog.length ? sessionLog[sessionLog.length - 1].t : 0;
-  drawHistory(fullDuration, fullDuration, sessionLog);
-  drawPitchCurve(fullDuration, fullDuration, sessionLog);
+  drawHistory(0, fullDuration, sessionLog);
+  drawPitchCurve(0, fullDuration, sessionLog);
 }
 
 function loop(){
@@ -112,8 +112,8 @@ function loop(){
 
   const nowRel = now - sessionStart;
   history = history.filter(p => nowRel - p.t <= TREND_WINDOW_SECONDS);
-  drawHistory(nowRel);
-  drawPitchCurve(nowRel);
+  drawHistory(nowRel - TREND_WINDOW_SECONDS, nowRel);
+  drawPitchCurve(nowRel - TREND_WINDOW_SECONDS, nowRel);
   drawSpectrum();
   updateStats();
 

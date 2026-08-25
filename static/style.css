@@ -29,16 +29,11 @@ body{
 }
 .wrap{ width:75%; max-width: none; }
 
-header{ margin-bottom: 22px; }
-.eyebrow{
-  font-family: var(--mono); font-size: 11px; letter-spacing: 0.18em;
-  color: var(--amber); text-transform: uppercase; margin-bottom: 6px;
-}
+header{ margin-bottom: 22px; text-align: center; }
 h1{
   font-family: var(--mono); font-weight: 800; font-size: 22px;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.01em; color: var(--amber);
 }
-.sub{ color: var(--text-dim); font-size: 13.5px; margin-top: 6px; line-height:1.5; }
 
 .panel{
   background: var(--bg-panel);
@@ -60,12 +55,32 @@ button{
 button:hover{ background: rgba(255,176,0,0.1); }
 button.active{ background: var(--amber); color: #0d0f0e; }
 button:disabled{ opacity:0.4; cursor:default; }
+.icon-btn{
+  display:inline-flex; align-items:center; justify-content:center;
+  padding: 11px 14px;
+}
+.icon-btn span{ display:flex; align-items:center; justify-content:center; width:100%; height:100%; }
+.icon-btn svg{ display:block; width: 18px; height: 18px; }
 .status{ font-family: var(--mono); font-size: 12px; color: var(--text-dim); }
 .status.live::before{
   content:''; display:inline-block; width:7px; height:7px; border-radius:50%;
   background: var(--red); margin-right:7px; vertical-align:1px;
   animation: pulse 1.4s infinite;
 }
+
+/* tabs */
+.tab-bar{
+  display:flex; gap: 4px; margin: 22px 0 0; border-bottom: 1px solid var(--line);
+}
+.tab-btn{
+  border: none; border-bottom: 2px solid transparent; border-radius: 0;
+  background: transparent; color: var(--text-dim);
+  padding: 10px 14px; font-size: 12px;
+}
+.tab-btn:hover{ background: transparent; color: var(--text); }
+.tab-btn.active{ background: transparent; color: var(--amber); border-bottom-color: var(--amber); }
+.tab-content{ display:none; padding-top: 22px; }
+.tab-content.active{ display:block; }
 @keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:0.25;} }
 
 /* note readout */
@@ -117,10 +132,6 @@ button:disabled{ opacity:0.4; cursor:default; }
   font-family: var(--mono); font-size: 11px; color: var(--text-dim);
   letter-spacing: 0.1em; text-transform: uppercase; margin: 26px 0 8px;
 }
-.charts-grid{
-  display:grid; grid-template-columns: 2fr 1fr; gap: 18px;
-  margin-top: 26px; align-items: stretch;
-}
 .charts-col-left{ display:flex; flex-direction:column; gap: 18px; }
 canvas#history{
   width: 100%; height: 110px; display:block;
@@ -131,7 +142,7 @@ canvas#pitchCurve{
   background: #0a0b0a; border: 1px solid var(--line); border-radius: 4px;
 }
 canvas#spectrum{
-  width: 100%; height: 100%; min-height: 320px; display:block;
+  width: 100%; height: 480px; display:block;
   background: #0a0b0a; border: 1px solid var(--line); border-radius: 4px;
 }
 
@@ -147,15 +158,106 @@ canvas#spectrum{
 .stat .lbl{ font-family: var(--mono); font-size: 10px; color: var(--text-dim);
   text-transform: uppercase; letter-spacing: 0.06em; margin-top: 3px; }
 
-footer{
-  width:100%; margin-top: 18px;
-  font-family: var(--mono); font-size: 11.5px; color: var(--text-dim); line-height:1.6;
-}
-
 .report{
   display:none; white-space: pre-wrap; font-family: var(--mono); font-size: 11px;
   color: var(--text-dim); background: #0a0b0a; border: 1px solid var(--line);
   border-radius: 4px; padding: 10px; margin-top: 8px; max-height: 260px; overflow-y:auto;
 }
 .report.visible{ display:block; }
-footer b{ color: var(--text); }
+
+.infos-text{
+  font-family: var(--mono); font-size: 11.5px; color: var(--text-dim); line-height:1.6;
+}
+.infos-text b{ color: var(--text); }
+
+/* Portrait (phone-like): the real problem isn't device type, it's a narrow
+   tall viewport — a resized desktop window gets this too, which is correct.
+   Landscape/wide screens keep the desktop rules above untouched. Sizes here
+   are bumped well beyond a simple scale-up: this is meant to be read at a
+   glance and tapped accurately while singing, not squinted at. */
+@media (orientation: portrait){
+  /* 100vh is unreliable on mobile browsers (address bar collapsing/expanding
+     changes it mid-session); 100dvh tracks the actual visible viewport. A
+     flex-grow chain this deep (body>wrap>panel>tab>report) also needs
+     min-height:0 at every level — without it, a flex item's default
+     min-height:auto can stop it from ever growing past its own content,
+     which is exactly why the report box was collapsing to ~1 line instead
+     of filling the tab. */
+  html, body{ height: 100dvh; min-height: 0; }
+  body{ padding: 20px 0 30px; }
+  .wrap{ width: 100%; flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  header{ padding: 0 16px; }
+  .panel{
+    flex: 1; display: flex; flex-direction: column; min-height: 0;
+    border-radius: 0; border-left: none; border-right: none; padding: 20px 16px;
+  }
+  /* Each tab's own content spreads across whatever vertical space is left
+     after the controls and tab bar, instead of clumping at the top. */
+  .tab-content.active{ flex: 1; display: flex; flex-direction: column; justify-content: space-evenly; min-height: 0; }
+
+  /* Sizes below scale with the actual viewport (vw) instead of fixed px, so
+     they land right on a small phone AND a big one instead of needing
+     another guess-and-check round every time. clamp(min, preferred, max)
+     keeps them from going absurd at either extreme. */
+  h1{ font-size: clamp(28px, 9vw, 48px); }
+
+  .control-row{ flex-wrap: wrap; gap: 12px; justify-content: center; }
+  button{ font-size: clamp(15px, 4.2vw, 20px); padding: 16px 22px; }
+  .icon-btn{ padding: 16px 20px; }
+  .icon-btn svg{ width: 24px; height: 24px; }
+  .status{ font-size: clamp(13px, 4vw, 18px); flex-basis: 100%; text-align: center; }
+
+  /* Primary controls: big square touch targets, side by side filling the row.
+     min-width stops them shrinking past the point where the label/icon still
+     fits — below that, .control-row's flex-wrap drops them to their own
+     line instead of squeezing and clipping "Start" or the play icon. */
+  #toggleBtn, #replayBtn{
+    flex: 1 1 0; aspect-ratio: 1 / 1; min-width: 100px;
+    display: flex; align-items: center; justify-content: center;
+    padding: 12px;
+  }
+  #toggleBtn{ font-size: clamp(26px, 9vw, 44px); }
+  #replayBtn.icon-btn svg{ width: 40%; height: 40%; }
+
+  .tab-bar{ gap: 2px; }
+  .tab-btn{ font-size: clamp(20px, 8.5vw, 34px); padding: 16px 4px; flex: 1 1 auto; line-height: 1.1; }
+  .tab-content{ padding-top: 28px; }
+
+  /* Analyse: one big button. The report flows normally right under the
+     status line instead of trying to exactly fill the tab's height — that
+     nested-flex approach kept collapsing to ~1 line depending on the
+     device. If it's long, the page scrolls; simple and it actually works. */
+  #analyseBtn{ width: 100%; font-size: clamp(22px, 8vw, 38px); padding: 30px; }
+  [data-tab-content="analyse"].active{ display: block; flex: none; }
+  .report{ font-size: clamp(20px, 6.5vw, 30px); line-height: 1.5; max-height: none; }
+
+  /* Direct + Fourier share the tab 50/50, each its own flex column. */
+  .live-block, .spectrum-block{
+    flex: 1; display: flex; flex-direction: column;
+    justify-content: space-evenly; min-height: 0;
+  }
+
+  .note-big{ font-size: clamp(72px, 28vw, 150px); }
+  .note-oct{ font-size: clamp(28px, 10vw, 52px); }
+  .freq{ font-size: clamp(16px, 5vw, 26px); margin-bottom: 34px; }
+
+  .gauge-wrap{ max-width: none; }
+  .gauge-ticks{ font-size: clamp(12px, 4vw, 20px); }
+  .gauge-track{ height: 56px; }
+  .gauge-needle{ width: 6px; }
+  .cents-label{ font-size: clamp(15px, 4.5vw, 24px); margin-top: 16px; }
+  .cents-label b{ font-size: clamp(18px, 5.5vw, 28px); }
+
+  .history-label{ font-size: clamp(13px, 4vw, 20px); margin: 30px 0 10px; }
+  .charts-col-left{ gap: 26px; }
+  canvas#history{ height: 220px; }
+  canvas#pitchCurve{ height: 420px; }
+  canvas#spectrum{ flex: 1; height: auto; min-height: 0; }
+
+  .stats{ gap: 14px; margin-top: 26px; }
+  .stat{ padding: 16px; }
+  .stat .val{ font-size: clamp(22px, 8vw, 40px); }
+  .stat .lbl{ font-size: clamp(11px, 3.2vw, 16px); }
+
+  .infos-text{ font-size: clamp(14px, 4.5vw, 20px); line-height: 1.7; }
+}

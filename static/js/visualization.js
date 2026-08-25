@@ -25,13 +25,19 @@ function niceTimeStep(windowSeconds, maxTicks){
   return candidates[candidates.length - 1];
 }
 
-function drawTimeAxis(ctx, w, h, plotH, now, windowSeconds){
+// windowStart/windowEnd map linearly to the left/right edges of the canvas —
+// windowEnd doesn't have to be "now" and windowStart doesn't have to be
+// windowEnd minus the trend window: replay uses a window that straddles the
+// playhead (1s behind, 3s ahead) instead of one that ends at "now", which is
+// why this isn't just a single (now, duration) pair.
+function drawTimeAxis(ctx, w, h, plotH, windowStart, windowEnd){
+  const windowSeconds = windowEnd - windowStart;
   const step = niceTimeStep(windowSeconds, 5);
-  const xFor = t => w - ((now - t) / windowSeconds) * w;
-  const startTick = Math.ceil((now - windowSeconds) / step) * step;
+  const xFor = t => ((t - windowStart) / windowSeconds) * w;
+  const startTick = Math.ceil(windowStart / step) * step;
   ctx.font = "20px monospace";
   ctx.textAlign = "center";
-  for (let t = startTick; t <= now + 1e-6; t += step){
+  for (let t = startTick; t <= windowEnd + 1e-6; t += step){
     if (t < -1e-6) continue; // no data before session start
     const x = xFor(t);
     if (x < 6 || x > w - 6) continue;
@@ -45,9 +51,10 @@ function drawTimeAxis(ctx, w, h, plotH, now, windowSeconds){
   ctx.textAlign = "left";
 }
 
-function drawHistory(now, windowSeconds = TREND_WINDOW_SECONDS, data = history, playheadT = null){
+function drawHistory(windowStart, windowEnd, data = history, playheadT = null){
   const w = canvas.width, h = canvas.height;
   const plotH = h - AXIS_H;
+  const windowSeconds = windowEnd - windowStart;
   ctx2d.clearRect(0,0,w,h);
 
   // center line
@@ -57,10 +64,10 @@ function drawHistory(now, windowSeconds = TREND_WINDOW_SECONDS, data = history, 
   ctx2d.moveTo(0, plotH/2); ctx2d.lineTo(w, plotH/2);
   ctx2d.stroke();
 
-  const xFor = t => w - ((now - t) / windowSeconds) * w;
+  const xFor = t => ((t - windowStart) / windowSeconds) * w;
   const barW = Math.max(w / (windowSeconds * 30), 1.5); // ~30fps budget worth of slots
   data.forEach(p => {
-    if (p.silent || p.cents === null || now - p.t > windowSeconds) return;
+    if (p.silent || p.cents === null || p.t < windowStart || p.t > windowEnd) return;
     const x = xFor(p.t);
     const clamped = Math.max(-50, Math.min(50, p.cents));
     const y = plotH/2 - (clamped/50) * (plotH/2 - 6);
@@ -80,20 +87,20 @@ function drawHistory(now, windowSeconds = TREND_WINDOW_SECONDS, data = history, 
     ctx2d.stroke();
   }
 
-  drawTimeAxis(ctx2d, w, h, plotH, now, windowSeconds);
+  drawTimeAxis(ctx2d, w, h, plotH, windowStart, windowEnd);
 }
 
-function drawPitchCurve(now, windowSeconds = TREND_WINDOW_SECONDS, data = history, playheadT = null){
+function drawPitchCurve(windowStart, windowEnd, data = history, playheadT = null){
   const w = pitchCanvas.width, h = pitchCanvas.height;
   const plotH = h - AXIS_H;
   pitchCtx.clearRect(0,0,w,h);
 
-  const recent = data.filter(p => now - p.t <= windowSeconds && !p.silent && p.noteNum != null);
+  const recent = data.filter(p => p.t >= windowStart && p.t <= windowEnd && !p.silent && p.noteNum != null);
   if (recent.length < 2){
     pitchCtx.fillStyle = "#4a4f4a";
     pitchCtx.font = "13px monospace";
     pitchCtx.fillText("en attente de voix…", 14, plotH/2);
-    drawTimeAxis(pitchCtx, w, h, plotH, now, windowSeconds);
+    drawTimeAxis(pitchCtx, w, h, plotH, windowStart, windowEnd);
     return;
   }
 
@@ -105,7 +112,7 @@ function drawPitchCurve(now, windowSeconds = TREND_WINDOW_SECONDS, data = histor
   const span = Math.max(maxN - minN, 4);
 
   const yFor = n => plotH - ((n - minN) / span) * plotH;
-  const xFor = t => w - ((now - t) / windowSeconds) * w;
+  const xFor = t => ((t - windowStart) / (windowEnd - windowStart)) * w;
 
   // horizontal gridlines + note labels, one per semitone in range
   pitchCtx.font = "22px monospace";
@@ -153,7 +160,7 @@ function drawPitchCurve(now, windowSeconds = TREND_WINDOW_SECONDS, data = histor
     pitchCtx.stroke();
   }
 
-  drawTimeAxis(pitchCtx, w, h, plotH, now, windowSeconds);
+  drawTimeAxis(pitchCtx, w, h, plotH, windowStart, windowEnd);
 }
 
 function drawSpectrum(){

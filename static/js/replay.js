@@ -1,4 +1,22 @@
 const replayBtn = document.getElementById('replayBtn');
+const replayIcon = document.getElementById('replayIcon');
+const PLAY_ICON = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+// Restart/rewind glyph — a circular arrow, spun via CSS while playing (see .icon-btn.spinning).
+const REWIND_ICON = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>';
+
+// During playback the charts show a window around the playhead instead of
+// the whole session: 1s of what just played plus 3s of what's coming, with
+// the "now" line fixed a quarter of the way across (1 / (1+3) = 25%) instead
+// of sweeping across a static full-session view.
+const REPLAY_LOOKBACK_SECONDS = 1;
+const REPLAY_LOOKAHEAD_SECONDS = 3;
+
+function setReplayIcon(playing){
+  replayIcon.innerHTML = playing ? REWIND_ICON : PLAY_ICON;
+  replayBtn.classList.toggle('spinning', playing);
+}
+setReplayIcon(false);
+
 let mediaRecorder = null;
 let recordedChunks = [];
 let lastRecordingBlob = null;
@@ -55,9 +73,9 @@ function stopReplay(){
   activeReplayCtx = null;
 
   replaying = false;
-  replayBtn.textContent = "Replay le dernier sample";
+  setReplayIcon(false);
   toggleBtn.disabled = false;
-  statusEl.textContent = "Micro coupé";
+  statusEl.textContent = "";
   statusEl.classList.remove('live');
   noteNameEl.textContent = "—";
   noteOctEl.textContent = "";
@@ -67,13 +85,13 @@ function stopReplay(){
   needleEl.style.background = "var(--amber)";
   spectrumCtx.clearRect(0,0,spectrumCanvas.width,spectrumCanvas.height);
   const fullDuration = sessionLog.length ? sessionLog[sessionLog.length - 1].t : 0;
-  drawHistory(fullDuration, fullDuration, sessionLog, 0);
-  drawPitchCurve(fullDuration, fullDuration, sessionLog, 0);
+  drawHistory(0, fullDuration, sessionLog, 0);
+  drawPitchCurve(0, fullDuration, sessionLog, 0);
 }
 
 async function playReplay(){
   replaying = true;
-  replayBtn.textContent = "Stop";
+  setReplayIcon(true);
   toggleBtn.disabled = true;
   statusEl.textContent = "Relecture…";
   statusEl.classList.add('live');
@@ -87,7 +105,7 @@ async function playReplay(){
   } catch (e) {
     statusEl.textContent = "Relecture impossible (format non supporté par ce navigateur)";
     statusEl.classList.remove('live');
-    replaying = false; replayBtn.textContent = "Replay le dernier sample"; toggleBtn.disabled = false;
+    replaying = false; setReplayIcon(false); toggleBtn.disabled = false;
     playCtx.close();
     activeReplayCtx = null;
     return;
@@ -111,9 +129,9 @@ async function playReplay(){
       finishReplay();
       return;
     }
-    // playhead + frozen full-session charts underneath it
-    drawHistory(fullDuration, fullDuration, sessionLog, elapsed);
-    drawPitchCurve(fullDuration, fullDuration, sessionLog, elapsed);
+    // scrolling window straddling the playhead, not the whole session
+    drawHistory(elapsed - REPLAY_LOOKBACK_SECONDS, elapsed + REPLAY_LOOKAHEAD_SECONDS, sessionLog, elapsed);
+    drawPitchCurve(elapsed - REPLAY_LOOKBACK_SECONDS, elapsed + REPLAY_LOOKAHEAD_SECONDS, sessionLog, elapsed);
 
     // live-looking readout, sourced from the nearest logged frame (not re-detected)
     const nearest = sessionLog.reduce((best, p) =>
@@ -135,12 +153,12 @@ async function playReplay(){
   function finishReplay(){
     if (replayRafId) cancelAnimationFrame(replayRafId);
     replaying = false;
-    replayBtn.textContent = "Replay le dernier sample";
+    setReplayIcon(false);
     toggleBtn.disabled = false;
-    statusEl.textContent = "Micro coupé";
+    statusEl.textContent = "";
     statusEl.classList.remove('live');
-    drawHistory(fullDuration, fullDuration, sessionLog);
-    drawPitchCurve(fullDuration, fullDuration, sessionLog);
+    drawHistory(0, fullDuration, sessionLog);
+    drawPitchCurve(0, fullDuration, sessionLog);
     spectrumCtx.clearRect(0,0,spectrumCanvas.width,spectrumCanvas.height);
     playCtx.close();
     activeReplaySource = null;
