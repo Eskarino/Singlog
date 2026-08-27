@@ -22,6 +22,7 @@
       <button class="tab-btn active" data-tab="trend">Courbes</button>
       <button class="tab-btn" data-tab="live">Direct</button>
       <button class="tab-btn" data-tab="analyse">Analyse</button>
+      <button class="tab-btn" data-tab="options">Options</button>
       <button class="tab-btn" data-tab="infos" aria-label="Infos">?</button>
     </div>
 
@@ -75,6 +76,51 @@
       <pre class="report" id="analyseReport"></pre>
     </div>
 
+    <div class="tab-content" data-tab-content="options">
+      <div class="options-list">
+        <div class="option-row">
+          <input type="checkbox" id="optSmoothing">
+          <label for="optSmoothing" class="option-label">Lissage médian</label>
+          <button type="button" class="info-btn" aria-label="Plus d'infos sur cette option">?</button>
+          <div class="tooltip">
+            Ta voix vibre légèrement à chaque instant, même sur une note stable — c'est normal, une voix n'est pas un synthé.<br><br>
+            <b>En pratique :</b> cette option lisse ces micro-tremblements avant affichage, comme une petite moyenne sur les dernières fractions de seconde.<br><br>
+            <b>Sur les courbes :</b> activée (par défaut), le pointeur et les courbes bougent de façon fluide. Désactivée, tu vois le signal brut, plus nerveux d'une frame à l'autre.
+          </div>
+        </div>
+        <div class="option-row">
+          <input type="checkbox" id="optOctaveContinuity">
+          <label for="optOctaveContinuity" class="option-label">Continuité d'octave</label>
+          <button type="button" class="info-btn" aria-label="Plus d'infos sur cette option">?</button>
+          <div class="tooltip">
+            L'algorithme peut parfois se tromper d'une octave entière — croire que tu chantes bien plus grave ou plus aigu qu'en réalité, à cause des harmoniques de la voix.<br><br>
+            <b>En pratique :</b> cette option compare chaque note détectée à la précédente pour repérer et corriger ce genre d'erreur.<br><br>
+            <b>Sur les courbes :</b> désactivée, tu peux voir des sauts verticaux brusques et faux (ex : la courbe part une octave plus bas sans raison). Activée (par défaut), la courbe reste cohérente d'une frame à l'autre.
+          </div>
+        </div>
+        <div class="option-row">
+          <input type="checkbox" id="optIgnorePortamento">
+          <label for="optIgnorePortamento" class="option-label">Ignorer le portamento</label>
+          <button type="button" class="info-btn" aria-label="Plus d'infos sur cette option">?</button>
+          <div class="tooltip">
+            Glisser d'une note à une autre (portamento/glissando) au lieu de sauter net, ce n'est ni juste ni faux — c'est une technique vocale, pas une erreur.<br><br>
+            <b>En pratique :</b> cette option repère ces glissements (mouvement rapide et ample de la hauteur) et ne les compte plus dans les stats de justesse — ni celles en direct (onglet Courbes), ni le rapport de l'onglet Analyse.<br><br>
+            <b>Sur les courbes :</b> un portamento se voit comme une pente continue entre deux notes sur la courbe de hauteur, pas un décrochage. Le tracé ne change pas — seuls les chiffres (% dans le ton, écart moyen, tendance) ignorent ces passages.
+          </div>
+        </div>
+        <div class="option-row">
+          <input type="checkbox" id="optIgnoreVibrato">
+          <label for="optIgnoreVibrato" class="option-label">Ignorer le vibrato détecté</label>
+          <button type="button" class="info-btn" aria-label="Plus d'infos sur cette option">?</button>
+          <div class="tooltip">
+            Un vibrato régulier et volontaire (la petite oscillation qu'on entend chez les chanteurs) n'est pas une fausse note — c'est une technique.<br><br>
+            <b>En pratique :</b> quand l'analyse détecte une oscillation régulière sur une note tenue, cette option retire ces points des stats globales (ils restent signalés à part, sans faire baisser ton score).<br><br>
+            <b>Sur les courbes :</b> le vibrato ressemble à une petite vague régulière autour d'une note tenue. Avec l'option activée, cette vague n'abaisse plus ton "% dans le ton" — elle est juste mentionnée dans le rapport d'analyse.
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="tab-content" data-tab-content="infos">
       <p class="infos-text">
         <b>Lecture :</b> zone verte = ±15 cents, une tolérance pensée pour la voix (vibrato naturel compris) plutôt que pour un accordage d'instrument. Au-delà, le curseur passe orange puis rouge. La bande d'historique en bas colore chaque instant chanté selon cet écart — utile pour repérer si tu dérives en fin de phrase ou sur certaines notes précises plutôt que globalement.<br><br>
@@ -86,6 +132,7 @@
   </div>
 </div>
 
+<script src="static/js/options.js"></script>
 <script src="static/js/pitch-detection.js"></script>
 <script src="static/js/visualization.js"></script>
 <script src="static/js/replay.js"></script>

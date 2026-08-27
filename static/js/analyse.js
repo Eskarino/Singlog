@@ -66,6 +66,29 @@ function toCents(noteNum){
   return (noteNum - rounded) * 100;
 }
 
+const TRANSITION_WINDOW_SECONDS = 0.15; // local window (each side) used to judge held-vs-gliding pitch
+// Total peak-to-trough range (max-min, not +/-) allowed within that window for a
+// point to still count as "held". Sized around +/-35c (natural vibrato/jitter
+// commonly swings +/-15-25c) so a real held note doesn't get misread as a
+// portamento just for wobbling normally.
+const HELD_BAND_CENTS = 70;
+
+// For each reading, looks at a small time-window around it and checks how far
+// the actual (continuous, unrounded) pitch moved — a real held note stays
+// inside a narrow band even with vibrato, while a portamento/glissando sweeps
+// well past it. Flagging these lets the stats below skip the glide instead of
+// scoring it as pitch instability.
+function classifyTransitions(readings, windowSec = TRANSITION_WINDOW_SECONDS, bandCents = HELD_BAND_CENTS){
+  return readings.map((r, i) => {
+    let lo = i, hi = i;
+    while (lo > 0 && r.t - readings[lo - 1].t <= windowSec) lo--;
+    while (hi < readings.length - 1 && readings[hi + 1].t - r.t <= windowSec) hi++;
+    const local = readings.slice(lo, hi + 1).map(p => p.noteNum);
+    const rangeCents = (Math.max(...local) - Math.min(...local)) * 100;
+    return rangeCents > bandCents;
+  });
+}
+
 const MIN_NOTE_FRAMES = 6; // ~100-200ms depending on frame rate — shorter runs are transitions, not held notes
 const DRIFT_MIN_TOTAL_CENTS = 8; // net pitch change over the note's duration to call it "drift" rather than noise
 const VIBRATO_MIN_AMP_CENTS = 8; // below this, it's measurement jitter, not an audible wobble
@@ -122,8 +145,39 @@ function buildReport(readings){
     lines.push(`(${readings.length - cleaned.length} points retirés par nettoyage médian avant les stats)`);
   }
 
-  const cents = cleaned.map(p => toCents(p.noteNum));
-  const notes = groupIntoNotes(cleaned).map(analyzeNote).filter(a => a.n >= MIN_NOTE_FRAMES);
+  // Portamento/transition filtering: only points that look like an actually
+  // held pitch feed the note grouping and stats below — a glide between
+  // notes shouldn't count as pitch instability just because it crosses
+  // several semitones quickly.
+  let heldReadings = cleaned;
+  if (options.ignorePortamento){
+    const transitionFlags = classifyTransitions(cleaned);
+    heldReadings = cleaned.filter((_, i) => !transitionFlags[i]);
+    const transitionCount = transitionFlags.filter(Boolean).length;
+    if (transitionCount > 0){
+      lines.push(`(${transitionCount} points identifiés comme portamento/transition, exclus des stats de justesse)`);
+    }
+    if (heldReadings.length === 0) heldReadings = cleaned; // whole take was gliding — fall back rather than report nothing
+  }
+
+  const noteGroups = heldReadings.length ? groupIntoNotes(heldReadings) : [];
+  const analyzed = noteGroups.map(group => ({ group, stats: analyzeNote(group) }));
+  const notes = analyzed.map(a => a.stats).filter(a => a.n >= MIN_NOTE_FRAMES);
+
+  // Vibrato exclusion: notes with a clearly detected, regular vibrato aren't
+  // dropped from the report, but their oscillation shouldn't drag down the
+  // global justesse stats below — that's the "controlled artistic choice,
+  // not an error" distinction the option is meant to express.
+  let globalReadings = heldReadings;
+  if (options.ignoreVibrato){
+    globalReadings = analyzed.flatMap(a => (a.stats.vibrato && a.stats.n >= MIN_NOTE_FRAMES) ? [] : a.group);
+    if (globalReadings.length === 0) globalReadings = heldReadings;
+    if (globalReadings.length < heldReadings.length){
+      lines.push(`(${heldReadings.length - globalReadings.length} points sur notes avec vibrato détecté, exclus des stats de justesse globale)`);
+    }
+  }
+
+  const cents = globalReadings.map(p => toCents(p.noteNum));
 
   lines.push('', '--- Tendances ---');
 

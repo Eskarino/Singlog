@@ -170,6 +170,33 @@ canvas#spectrum{
 }
 .infos-text b{ color: var(--text); }
 
+.options-list{ display:flex; flex-direction:column; gap:16px; }
+.option-row{
+  position: relative; display:flex; align-items:center; gap:10px;
+  font-family: var(--mono);
+}
+.option-row input[type="checkbox"]{ flex-shrink:0; width:16px; height:16px; accent-color: var(--amber); }
+.option-label{ flex:1; font-size: 13px; color: var(--text); cursor:pointer; }
+
+.info-btn{
+  flex-shrink:0; width:20px; height:20px; border-radius:50%; padding:0;
+  border:1px solid var(--line); background:transparent; color: var(--text-dim);
+  font-family: var(--mono); font-size:11px; line-height:1; cursor:pointer;
+}
+.info-btn:hover{ color: var(--text); border-color: var(--text-dim); }
+
+/* Tap-to-open info bubble (no hover reliance — this menu is mainly used on
+   phones). Floats below the row instead of pushing the rest of the list
+   down, and spans the row's own width so it can never overflow the
+   viewport sideways on a narrow phone. */
+.tooltip{
+  display:none; position:absolute; top: calc(100% + 6px); left:0; right:0; z-index:5;
+  font-size: 11px; color: var(--text-dim); line-height:1.6;
+  background: var(--bg-panel); border:1px solid var(--line); border-radius:6px; padding:10px 12px;
+}
+.tooltip b{ color: var(--text); }
+.option-row.tooltip-open .tooltip{ display:block; }
+
 /* Portrait (phone-like): the real problem isn't device type, it's a narrow
    tall viewport — a resized desktop window gets this too, which is correct.
    Landscape/wide screens keep the desktop rules above untouched. Sizes here
@@ -230,6 +257,15 @@ canvas#spectrum{
   #analyseBtn{ width: 100%; font-size: clamp(22px, 8vw, 38px); padding: 30px; }
   [data-tab-content="analyse"].active{ display: block; flex: none; }
   .report{ font-size: clamp(20px, 6.5vw, 30px); line-height: 1.5; max-height: none; }
+
+  /* Options: same reasoning as Analyse above — a variable-length list of
+     checkboxes doesn't work as a space-evenly flex column, it just flows and
+     scrolls with the page. */
+  [data-tab-content="options"].active{ display: block; flex: none; }
+  .options-list{ gap: 22px; }
+  .option-label{ font-size: clamp(15px, 4.2vw, 19px); }
+  .info-btn{ width: 30px; height: 30px; font-size: clamp(13px, 3.5vw, 16px); }
+  .tooltip{ font-size: clamp(13px, 3.8vw, 16px); padding: 12px 14px; }
 
   /* Direct + Fourier share the tab 50/50, each its own flex column. */
   .live-block, .spectrum-block{
