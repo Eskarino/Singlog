@@ -82,13 +82,13 @@ function stop(){
 function loop(){
   if (!running) return;
   analyser.getFloatTimeDomainData(buf);
-  const freq = autoCorrelate(buf, audioCtx.sampleRate, lastFreq);
+  const freq = autoCorrelate(buf, audioCtx.sampleRate, options.octaveContinuity ? lastFreq : null);
   const now = performance.now() / 1000;
 
   if (freq > 0){
     markVoicedFrame(now, freq);
     const rawNoteNum = 12 * Math.log2(freq / 440) + 69;
-    const noteNum = smoothedNoteNum(rawNoteNum);
+    const noteNum = options.smoothing ? smoothedNoteNum(rawNoteNum) : rawNoteNum;
     const { name, octave, cents } = noteNumToLabel(noteNum);
     noteNameEl.textContent = name;
     noteOctEl.textContent = octave;
@@ -132,21 +132,41 @@ function updateNeedle(cents){
   centsLabelEl.innerHTML = `écart : <b>${sign}${cents.toFixed(0)}¢</b> ${cents>0 ? '(trop haut)' : cents<0 ? '(trop bas)' : ''}`;
 }
 
+// Below this many voiced points, any percentage would just reflect noise
+// from a handful of frames (0% one instant, 80% the next) rather than
+// anything real — show "—" instead, and don't trust a held-only subset this
+// small either (see updateStats below).
+const MIN_SAMPLES_FOR_LIVE_STATS = 20; // ~1/3s of frames at 60fps
+
 function updateStats(){
   const voiced = history.filter(p => !p.silent && p.cents !== null);
-  if (voiced.length === 0){
+  if (voiced.length < MIN_SAMPLES_FOR_LIVE_STATS){
     statInTune.textContent = "—";
     statAvg.textContent = "—";
     statBias.textContent = "—";
     return;
   }
-  const inTune = voiced.filter(p => Math.abs(p.cents) <= 15).length;
-  statInTune.textContent = Math.round(100 * inTune / voiced.length) + "%";
 
-  const avgAbs = voiced.reduce((s,p) => s + Math.abs(p.cents), 0) / voiced.length;
+  // Same held-vs-transition classification as the post-session report (see
+  // analyse.js), applied live to the rolling window — a portamento shouldn't
+  // drag down these numbers any more than it does the final analysis. Only
+  // trust the held-only subset once it's past the same minimum-sample floor;
+  // otherwise fall back to the full voiced set, which is far less noisy at
+  // small sizes simply by being bigger.
+  let stats = voiced;
+  if (options.ignorePortamento){
+    const transitionFlags = classifyTransitions(voiced);
+    const held = voiced.filter((_, i) => !transitionFlags[i]);
+    if (held.length >= MIN_SAMPLES_FOR_LIVE_STATS) stats = held;
+  }
+
+  const inTune = stats.filter(p => Math.abs(p.cents) <= 15).length;
+  statInTune.textContent = Math.round(100 * inTune / stats.length) + "%";
+
+  const avgAbs = stats.reduce((s,p) => s + Math.abs(p.cents), 0) / stats.length;
   statAvg.textContent = avgAbs.toFixed(0);
 
-  const meanSigned = voiced.reduce((s,p) => s + p.cents, 0) / voiced.length;
+  const meanSigned = stats.reduce((s,p) => s + p.cents, 0) / stats.length;
   if (Math.abs(meanSigned) < 5) statBias.textContent = "stable";
   else statBias.textContent = meanSigned > 0 ? "trop haut" : "trop bas";
 }
