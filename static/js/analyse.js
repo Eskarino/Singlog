@@ -116,6 +116,12 @@ function analyzeNote(note){
     }
   }
 
+  // Amplitude of what's left after the drift trend is removed — computed
+  // regardless of regularity, so a wobble that fails the vibrato-regularity
+  // test below isn't just silently dropped (that used to leave no signal at
+  // all to distinguish a rock-steady note from an uncontrolled shaky one).
+  const ampCents = pstdev(residual) * Math.SQRT2; // RMS -> amplitude estimate for a roughly sinusoidal wobble
+
   let vibrato = null;
   if (crossingTimes.length >= 4){
     const intervals = [];
@@ -123,13 +129,18 @@ function analyzeNote(note){
     const meanInterval = mean(intervals);
     const cv = pstdev(intervals) / meanInterval;
     const rateHz = 1 / (2 * meanInterval); // two half-cycles (crossings) per full oscillation
-    const ampCents = pstdev(residual) * Math.SQRT2; // RMS -> amplitude estimate for a roughly sinusoidal wobble
     if (cv < VIBRATO_MAX_INTERVAL_CV && rateHz >= VIBRATO_RATE_MIN_HZ && rateHz <= VIBRATO_RATE_MAX_HZ && ampCents >= VIBRATO_MIN_AMP_CENTS){
       vibrato = { rateHz, ampCents };
     }
   }
 
-  return { n: note.length, duration, totalDrift, vibrato };
+  // A wobble big enough to hear but too irregular/wrong-rate to be a
+  // controlled vibrato is a real stability issue (usually breath support),
+  // not a technique — keep it as its own category rather than lumping it
+  // in with "no vibrato found".
+  const instability = (!vibrato && ampCents >= VIBRATO_MIN_AMP_CENTS) ? { ampCents } : null;
+
+  return { n: note.length, duration, totalDrift, vibrato, instability };
 }
 
 function buildReport(readings){
@@ -179,32 +190,81 @@ function buildReport(readings){
 
   const cents = globalReadings.map(p => toCents(p.noteNum));
 
-  lines.push('', '--- Tendances ---');
-
+  // Classify each pattern once here; both the "Conseils" and "Tendances"
+  // sections below read from these same results instead of re-deriving them.
   const bias = mean(cents);
-  if (Math.abs(bias) < 5){
-    lines.push("Justesse globale : stable, pas de biais net.");
-  } else {
-    lines.push(`Justesse globale : tu chantes en moyenne ${Math.abs(bias).toFixed(1)}c trop ${bias > 0 ? 'haut' : 'bas'}.`);
-  }
+  const biasSignificant = Math.abs(bias) >= 5;
+  const biasDirection = bias > 0 ? 'haut' : 'bas';
 
-  if (notes.length === 0){
-    lines.push("Pas assez de notes tenues assez longtemps pour analyser dérive ou vibrato.");
-  } else {
+  let driftDirection = null, driftCount = 0;
+  let instabilityNotes = [], vibratoNotes = [];
+  let majority = 0;
+  if (notes.length > 0){
+    majority = Math.max(2, Math.ceil(notes.length * 0.3));
     const drifting = notes.filter(nt => Math.abs(nt.totalDrift) >= DRIFT_MIN_TOTAL_CENTS);
     const up = drifting.filter(nt => nt.totalDrift > 0).length;
     const down = drifting.filter(nt => nt.totalDrift < 0).length;
-    const majority = Math.max(2, Math.ceil(notes.length * 0.3));
-    if (up >= majority && up > down){
-      lines.push(`Dérive : ta hauteur a tendance à monter en cours de note (${up}/${notes.length} notes tenues touchées).`);
-    } else if (down >= majority && down > up){
-      lines.push(`Dérive : ta hauteur a tendance à descendre en cours de note (${down}/${notes.length} notes tenues touchées).`);
+    if (up >= majority && up > down){ driftDirection = 'up'; driftCount = up; }
+    else if (down >= majority && down > up){ driftDirection = 'down'; driftCount = down; }
+
+    instabilityNotes = notes.filter(nt => nt.instability);
+    if (instabilityNotes.length < majority) instabilityNotes = [];
+    vibratoNotes = notes.filter(nt => nt.vibrato);
+    if (vibratoNotes.length < majority) vibratoNotes = [];
+  }
+
+  // --- Conseils ---
+  const tips = [];
+  if (biasSignificant){
+    tips.push(biasDirection === 'haut'
+      ? "Tu chantes globalement trop haut : essaie de moins pousser le son, détends la mâchoire et le larynx plutôt que de forcer vers l'aigu."
+      : "Tu chantes globalement trop bas : renforce le soutien de ta respiration — l'air doit porter activement la note plutôt que de la laisser retomber.");
+  }
+  if (driftDirection === 'up'){
+    tips.push("Ta hauteur monte en cours de note tenue : garde un débit d'air constant, évite de pousser de plus en plus fort vers la fin de la note.");
+  } else if (driftDirection === 'down'){
+    tips.push("Ta hauteur descend en cours de note tenue : tiens le soutien respiratoire jusqu'au bout, ne le relâche pas avant la fin de la note.");
+  }
+  if (instabilityNotes.length > 0){
+    tips.push("Ta hauteur est irrégulière sur certaines notes tenues (pas un vibrato régulier) : travaille le soutien du souffle — tiens une voyelle stable sur des notes longues pour muscler ça.");
+  }
+  lines.push('', '--- Conseils ---');
+  if (tips.length > 0){
+    lines.push(...tips);
+  } else {
+    lines.push("Rien de particulier à corriger sur cette session — continue comme ça.");
+  }
+
+  lines.push('', '--- Tendances ---');
+
+  if (biasSignificant){
+    lines.push(`Justesse globale : tu chantes en moyenne ${Math.abs(bias).toFixed(1)}c trop ${biasDirection}.`);
+  } else {
+    lines.push("Justesse globale : stable, pas de biais net.");
+  }
+
+  if (notes.length === 0){
+    lines.push("Pas assez de notes tenues assez longtemps pour analyser dérive, stabilité ou vibrato.");
+  } else {
+    if (driftDirection === 'up'){
+      lines.push(`Dérive : ta hauteur a tendance à monter en cours de note (${driftCount}/${notes.length} notes tenues touchées).`);
+    } else if (driftDirection === 'down'){
+      lines.push(`Dérive : ta hauteur a tendance à descendre en cours de note (${driftCount}/${notes.length} notes tenues touchées).`);
     } else {
       lines.push("Dérive : pas de tendance systématique à monter/descendre sur les notes tenues.");
     }
 
-    const vibratoNotes = notes.filter(nt => nt.vibrato);
-    if (vibratoNotes.length >= majority){
+    if (instabilityNotes.length > 0){
+      const avgAmp = mean(instabilityNotes.map(nt => nt.instability.ampCents));
+      lines.push(
+        `Stabilité : hauteur irrégulière (pas un vibrato régulier) sur ${instabilityNotes.length}/${notes.length} notes tenues ` +
+        `(~${avgAmp.toFixed(0)}c) — souvent lié à un manque de soutien du souffle.`
+      );
+    } else {
+      lines.push("Stabilité : notes tenues globalement stables.");
+    }
+
+    if (vibratoNotes.length > 0){
       const avgRate = mean(vibratoNotes.map(nt => nt.vibrato.rateHz));
       const avgAmp = mean(vibratoNotes.map(nt => nt.vibrato.ampCents));
       lines.push(
